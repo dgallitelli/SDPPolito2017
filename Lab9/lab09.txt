@@ -1,0 +1,147 @@
+System and Device Programming
+Laboratory number 09 (02 part II)
+
+
+
+Note
+----
+
+All students are requested to *up-load* on the class "portal" web page
+the solution of Exercises 03.
+Up-load the source code, i.e., the ".cpp" file (in tar-gzipped format,
+when necessary).
+Explanatory comments may be reported on top of programs (when necessary).
+Please, follow the course rules to deliver the laboratory solution.
+
+
+
+Laboratory target
+-----------------
+
+Binary files, filesystems, and multi-threaded programming (only running
+and waiting for threads, no synchronization).
+
+
+
+Requested background
+--------------------
+
+- At least one sorting algorithm (i.e., such as insertion sort,
+  selection sort, ..., quick sort).
+- The merge algorithm (i.e., merging two ordered sequences of values
+  into a unique ordered sequence of values without "reordering"
+  all data from scratch).
+
+
+
+Exercise 01
+-----------
+
+A file stores integer values in binary format on 32 bits.
+The first integer stored in the file indicates the number of values
+following the first one.
+For example, the following three lines specify (in ASCII format, of
+course) the content of three possible files (that have to be stored in
+binary format):
+
+File 1: 5 23 45 67 9 23
+File 2: 15 90 65 34 24 12 0 89 29 54 12 78 3
+File 3: 3 9 5 1
+
+Write a WIN 32 application which:
+
+- Receives a variable number of strings, let us say n strings, on the
+  command line.
+  The first (n-1) strings are input file names.
+  The last string is an output file name.
+  Each input file has the format previously described.
+
+- Runs one thread for each input file passing to each of them one of
+  the input file names.
+  We will call those (n-1) running threads, "ordering" threads.
+
+- After running all ordering threads, the main application waits for
+  the termination of all of them.
+
+- When the main threads awaits, each ordering thread:
+  - opens "its own" input file
+  - reads the first integer value
+  - allocates a dynamic array of integers to store all other integer
+    numbers stored in the file
+  - read those numbers into the array
+  - orders the array (in ascending order) using whatever ordering
+    algorithm it is deemed appropriate
+  - ends (returning the control to the main application thread).
+
+- The main application thread, once collected the termination of all
+  ordering threads, merges all ordered array into a unique array,
+  i.e., a unique sequence of integers.
+
+- It stores the resulting array into the output file, using the
+  same format of the input files.
+
+For the previous files the output file should be:
+20 0 1 3 5 9 9 12 15 23 23 24 29 34 45 54 65 67 78 89 90
+
+
+
+Exercise 02
+-----------
+
+Copy a directory tree and modify each source file while copying it.
+
+A C program is run with two parameters
+name1 name2
+where name1 and name2 are C strings which indicates relative
+or absolute paths of two directory trees.
+
+The program has to copy the directory name1 into an isomorphic
+directory name2.
+For each copied file, the program has to add two data fields
+on top of the destination file specifying:
+- the first one, the name of the file (C string) 
+- the second one, the size of the source (original) file
+  (a 32-bit or 64-bit integer value at choice).
+
+
+
+Exercise 03 (versions A, B and C)
+---------------------------------
+
+Visit N directory trees concurrently with N threads.
+
+A C program receives N parameters on the command line.
+Each parameter indicates a relative or an absolute path to
+a file system directory tree.
+
+The program has to run N threads (one for each argument).
+Each thread recursively visits one of the directories, and,
+for each directory entry, it prints-out its thread identifier
+and the directory entry name.
+The main thread awaits for the termination of all threads.
+When all threads have visited their directory also the program
+ends.
+
+Version A
+In the previous version (Version A), as all output lines are
+generated independently by each single thread, printing messages
+from different threads are interleaved on standard output.
+To avoid interleaved output it is usually possibile to proceed
+in several ways.
+Then, extend version A as follows.
+
+Version B
+This version uses files to avoid interleaving.
+Each thread stores its output on a file whose name is generated
+(to avoid conflicts) based on the thread identifier.
+When all working threads end, the main thread copies all files on
+standard output with the desired strategy (and no interruption).
+
+Version C
+(need synchronization among threads !)
+This version uses a centralized output routine to avoid conflicts.
+Use a single "protected" output routine to print-out all output
+messages coming from all threads.
+This function has to used in mutual exclusion, and it can identify
+each thread output using different technique (e.g., it can indent
+messages in a different way for each thread).
