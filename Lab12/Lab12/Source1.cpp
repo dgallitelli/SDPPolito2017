@@ -16,7 +16,6 @@
 #include <tchar.h>
 #include <stdio.h>
 
-
 #define BUF_SIZE 256
 #define LEN 256
 

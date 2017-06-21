@@ -11,6 +11,7 @@
 #include <time.h>
 
 #define LEN 256
+#define ifmain _tmainCCC
 
 typedef struct _access {
 	TCHAR ip[15];
@@ -37,7 +38,7 @@ static void reader(HANDLE);
 static void writer(HANDLE);
 static FLOAT frand();
 
-INT _tmain(INT argc, LPTSTR argv[]) {
+INT ifmain(INT argc, LPTSTR argv[]) {
 	INT qty, threadsQty, i;
 	HANDLE server_list;
 	DWORD nr_bytes;
