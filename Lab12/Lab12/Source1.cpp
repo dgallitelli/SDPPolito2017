@@ -18,6 +18,7 @@
 
 #define BUF_SIZE 256
 #define LEN 256
+#define ifmain _tmain
 
 typedef struct _access {
 	TCHAR ip[15];
@@ -28,25 +29,24 @@ typedef struct _access {
 
 // righe da modificare: 67, 99, struct
 
-INT _tmain(INT argc, LPTSTR argv[])
+INT ifmain(INT argc, LPTSTR argv[])
 {
 	INT id;
 	HANDLE hIn;
 	LARGE_INTEGER filePos;
-	DWORD nRead, nWrite;
+	DWORD nWrite;
 	student stud;
 	TCHAR lpBuffer[BUF_SIZE];
 	OVERLAPPED ov = { 0, 0, 0, 0, NULL }; //Internal, InternalHigh, Offset, OffsetHigh, hEvent
 
 	if (argc != 2) {
-		fprintf(stderr, "Usage: (%s) database\n", argv[0]);
+		_ftprintf(stderr, _T("Usage: (%s) database\n"), argv[0]);
 		return 1;
 	}
 
-
 	hIn = CreateFile(argv[1], GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (hIn == INVALID_HANDLE_VALUE) {
-		fprintf(stderr, "Cannot open input file. Error: %x\n", GetLastError());
+		_ftprintf(stderr, _T("Cannot open input file. Error: %x\n"), GetLastError());
 		return 2;
 	}
 
