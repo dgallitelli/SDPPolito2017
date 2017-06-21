@@ -8,9 +8,14 @@
 // For the locks I've opted not to use any flag while reading (shared lock),
 // and using a LOCKFILE_EXCLUSIVE_LOCK while writing.
 
+#define UNICODE
+#define _UNICODE
+#define _CRT_SECURE_NO_WARNINGS
+
 #include <windows.h>
 #include <tchar.h>
 #include <stdio.h>
+
 
 #define BUF_SIZE 256
 #define LEN 256
@@ -40,7 +45,7 @@ INT _tmain(INT argc, LPTSTR argv[])
 	}
 
 
-	hIn = CreateFile(argv[1], GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	hIn = CreateFile(argv[1], GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (hIn == INVALID_HANDLE_VALUE) {
 		fprintf(stderr, "Cannot open input file. Error: %x\n", GetLastError());
 		return 2;
@@ -95,7 +100,7 @@ INT _tmain(INT argc, LPTSTR argv[])
 				ov.Offset = 0xFFFFFFFF;
 				ov.OffsetHigh = 0xFFFFFFFF;
 			//}
-			_tprintf(_T("Insert: id register_number name surname mark\n"));
+			_tprintf(_T("Insert: IP dude datetime length\n"));
 			_tscanf(_T("%s %s %s %s"), &stud.ip, &stud.dude, &stud.datetime, &stud.length);
 
 			LockFileEx(hIn, LOCKFILE_EXCLUSIVE_LOCK, 0, sizeof(student), 0, &ov);
