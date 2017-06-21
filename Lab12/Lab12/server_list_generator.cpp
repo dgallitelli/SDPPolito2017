@@ -54,13 +54,13 @@ INT ifmain(INT argc, LPTSTR argv[])
 	while (ReadFile(src, clpBuffer, BUF_SIZE - 1, &nRead, &ov) && nRead > 0) {
 		mbstowcs(lpBuffer, clpBuffer, BUF_SIZE + 1);
 		_stscanf(lpBuffer, _T("%s\r\n%s"), stud, oversize);
-		filePos.QuadPart += _tcslen(lpBuffer) - _tcslen(oversize);
+		filePos.QuadPart += _tcslen(stud) + _tcslen(_T("\r\n"));
 		ov.Offset = filePos.LowPart;
 		ov.OffsetHigh = filePos.HighPart;
 		_tprintf(_T("Stud data:\n%s\n"), stud);
 		ov1.Offset = 0xFFFFFFFF;
 		ov1.OffsetHigh = 0xFFFFFFFF;
-		if (WriteFile(hOut, &stud, _tcslen(stud) * sizeof(TCHAR), &nWrite, &ov1) && nWrite == _tcslen(stud) * sizeof(TCHAR))
+		if (WriteFile(hOut, &stud, LEN * sizeof(TCHAR), &nWrite, &ov1) && nWrite == LEN * sizeof(TCHAR))
 			_tprintf(_T("Line with id: %s stored correctly.\n"), stud);
 		else
 			_tprintf(_T("Error storing line"));
