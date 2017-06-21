@@ -44,7 +44,6 @@ INT _tmain(INT argc, LPTSTR argv[]) {
 	DWORD *threadId;
 	HANDLE *threadHandle;
 	TCHAR buf[LEN];
-	INT numberOfServers;
 	tParam param;
 
 	threadsQty = _ttoi(argv[2]);
@@ -130,7 +129,7 @@ static void reader(HANDLE handle) {
 	struct tm *tm1;
 	time_t time;
 	time_t last_time = -1;
-	TCHAR* strtime;
+	TCHAR strtime[LEN];
 	LONG totLength = 0;
 
 	while (ReadFile(handle, &access, sizeof(tAccess), &nr_bytes, NULL) && nr_bytes > 0) {
@@ -170,7 +169,7 @@ static void writer(HANDLE handle) {
 	struct tm *tm1;
 	time_t time;
 	time_t last_time = -1;
-	LPTSTR strtime;
+	TCHAR strtime[LEN];
 	INT done = 0;
 	int pos = 0;
 	OVERLAPPED ov = { 0, 0, 0, 0, NULL }; //Internal, InternalHigh, Offset, OffsetHigh, hEvent
