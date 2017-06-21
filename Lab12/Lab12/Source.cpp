@@ -135,6 +135,7 @@ static void reader(HANDLE handle) {
 
 	while (ReadFile(handle, &access, sizeof(tAccess), &nr_bytes, NULL) && nr_bytes > 0) {
 		_stscanf(access.datetime, _T("%d/%d/%d:%d:%d:%d"), &yyyy, &MM, &dd, &HH, &mm, &ss);
+		tm1 = (struct tm*) malloc(sizeof(struct tm));
 		tm1->tm_sec = ss;
 		tm1->tm_min = mm;
 		tm1->tm_hour = HH;
@@ -183,6 +184,7 @@ static void writer(HANDLE handle) {
 		if (frand() > 0.5) {
 			done = 1;
 			_stscanf(access.datetime, _T("%d/%d/%d:%d:%d:%d"), &yyyy, &MM, &dd, &HH, &mm, &ss);
+			tm1 = (struct tm*) malloc(sizeof(struct tm));
 			tm1->tm_sec = ss;
 			tm1->tm_min = mm;
 			tm1->tm_hour = HH;
@@ -200,6 +202,7 @@ static void writer(HANDLE handle) {
 		}
 		if (!done || (frand() > 0.5)) {
 			_stscanf(access.length, _T("%d:%d:%d"), &HH, &mm, &ss);
+			tm1 = (struct tm*) malloc(sizeof(struct tm));
 			tm1->tm_sec = ss;
 			tm1->tm_min = mm;
 			tm1->tm_hour = HH;
