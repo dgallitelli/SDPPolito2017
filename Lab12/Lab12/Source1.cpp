@@ -48,10 +48,10 @@ INT _tmain(INT argc, LPTSTR argv[])
 
 	while (1)
 	{
-		_tprintf("User choice: |R id| or |W id| or |E|: ");
+		_tprintf(_T("User choice: |R id| or |W id| or |E|: "));
 		_fgetts(lpBuffer, BUF_SIZE + 1, stdin);
 
-		_tprintf("Your input:\n%s\n", lpBuffer);
+		_tprintf(_T("Your input:\n%s\n"), lpBuffer);
 
 		id = _ttoi(&lpBuffer[2]);
 		switch (lpBuffer[0])
@@ -95,24 +95,24 @@ INT _tmain(INT argc, LPTSTR argv[])
 				ov.Offset = 0xFFFFFFFF;
 				ov.OffsetHigh = 0xFFFFFFFF;
 			//}
-			_tprintf("Insert: id register_number name surname mark\n");
-			_tscanf("%s %s %s %s", &stud.ip, &stud.dude, &stud.datetime, &stud.length);
+			_tprintf(_T("Insert: id register_number name surname mark\n"));
+			_tscanf(_T("%s %s %s %s"), &stud.ip, &stud.dude, &stud.datetime, &stud.length);
 
 			LockFileEx(hIn, LOCKFILE_EXCLUSIVE_LOCK, 0, sizeof(student), 0, &ov);
 			if (WriteFile(hIn, &stud, sizeof(student), &nWrite, &ov) && nWrite == sizeof(student))
-				_tprintf("Line with id: %s stored correctly.\n", stud.ip);
+				_tprintf(_T("Line with id: %s stored correctly.\n"), stud.ip);
 
 			UnlockFileEx(hIn, 0, sizeof(student), 0, &ov);
 			fflush(stdin);
 			break;
 		case 'E':
-			_tprintf("The program will exit...\n");
+			_tprintf(_T("The program will exit...\n"));
 			fflush(stdin);
 			CloseHandle(hIn);
 			system("pause");
 			return 0;
 		default:
-			_tprintf("Command not supported.\n");
+			_tprintf(_T("Command not supported.\n"));
 			break;
 		}
 	}
