@@ -11,7 +11,7 @@
 #include <time.h>
 
 #define LEN 256
-#define ifmain _tmainCCC
+#define ifmain _tmainCCC2
 
 typedef struct _access {
 	TCHAR ip[15+1];
