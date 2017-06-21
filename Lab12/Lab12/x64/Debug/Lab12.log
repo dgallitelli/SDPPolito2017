@@ -1,0 +1,6 @@
+﻿  Source.cpp
+d:\progetti\sdp-galitelli\sdppolito2017\lab12\lab12\source.cpp(80): warning C4244: 'argument': conversion from 'time_t' to 'unsigned int', possible loss of data
+d:\progetti\sdp-galitelli\sdppolito2017\lab12\lab12\source.cpp(93): warning C4244: 'argument': conversion from 'FLOAT' to 'DWORD', possible loss of data
+d:\progetti\sdp-galitelli\sdppolito2017\lab12\lab12\source.cpp(195): warning C4244: '*=': conversion from 'double' to 'time_t', possible loss of data
+  Lab12.vcxproj -> D:\progetti\sdp-galitelli\SDPPolito2017\Lab12\x64\Debug\Lab12.exe
+  Lab12.vcxproj -> D:\progetti\sdp-galitelli\SDPPolito2017\Lab12\x64\Debug\Lab12.pdb (Partial PDB)
