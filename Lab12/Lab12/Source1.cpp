@@ -16,7 +16,7 @@
 #include <tchar.h>
 #include <stdio.h>
 
-#define BUF_SIZE 256
+#define BUF_SIZE 51
 #define LEN 256
 #define ifmain _tmain
 
@@ -32,22 +32,20 @@ typedef struct _access {
 INT ifmain(INT argc, LPTSTR argv[])
 {
 	INT id;
-	HANDLE hIn;
+	HANDLE hIn, src, hOut;
 	LARGE_INTEGER filePos;
-	DWORD nWrite;
+	DWORD nWrite, nRead;
 	student stud;
 	TCHAR lpBuffer[BUF_SIZE];
 	OVERLAPPED ov = { 0, 0, 0, 0, NULL }; //Internal, InternalHigh, Offset, OffsetHigh, hEvent
+	OVERLAPPED ov1 = { 0,0,0,0, NULL };
+	HANDLE SearchHandle;
+	WIN32_FIND_DATA FindData;
+	TCHAR outName[256];
 
 	if (argc != 2) {
 		_ftprintf(stderr, _T("Usage: (%s) database\n"), argv[0]);
 		return 1;
-	}
-
-	hIn = CreateFile(argv[1], GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-	if (hIn == INVALID_HANDLE_VALUE) {
-		_ftprintf(stderr, _T("Cannot open input file. Error: %x\n"), GetLastError());
-		return 2;
 	}
 
 	while (1)
@@ -60,59 +58,34 @@ INT ifmain(INT argc, LPTSTR argv[])
 		id = _ttoi(&lpBuffer[2]);
 		switch (lpBuffer[0])
 		{
-		/*case 'R':
-			filePos.QuadPart = id * sizeof(student);
-			ov.Offset = filePos.LowPart;
-			ov.OffsetHigh = filePos.HighPart;
-			LockFileEx(hIn, 0, 0, sizeof(student), 0, &ov);
-			ReadFile(hIn, &stud, sizeof(student), &nRead, &ov);
-			UnlockFileEx(hIn, 0, sizeof(student), 0, &ov);
-			if (nRead && stud.id == id) {
-				_tprintf("%s %s %s %s\n", stud.id, stud.register_number, stud.name, stud.surname, stud.mark);
-				break;
-			}
-			if (nRead == 0)
-				_tprintf("Your ID %d does not exist.\n", id);
-			fflush(stdin); //if we do not put fflush there is an error with the CR
+		case 'R':
+			SearchHandle = FindFirstFile(argv[1], &FindData);
+			do {
+				src = CreateFile(FindData.cFileName, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+				_tprintf(_T("%s"), FindData.cFileName);
+				_stprintf(outName, _T("%s.bin"), FindData.cFileName);
+				_tprintf(_T("%s"), outName);
+				hOut = CreateFile(outName, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+				while (ReadFile(src, lpBuffer, sizeof(lpBuffer), &nRead, &ov) && nRead > 0) {
+					_stscanf(lpBuffer, _T("%s\t%s\t%s\t%s"), &stud.ip, &stud.dude, &stud.datetime, &stud.length);
+					_tprintf(_T("%s %s %s %s\n"), stud.ip, stud.dude, stud.datetime, stud.length);
+					ov1.Offset = 0xFFFFFFFF;
+					ov1.OffsetHigh = 0xFFFFFFFF;
+					if (WriteFile(hOut, &stud, sizeof(student), &nWrite, &ov1) && nWrite == sizeof(student))
+						_tprintf(_T("Line with id: %s stored correctly.\n"), stud.ip);
+					else
+						_tprintf(_T("Error storing line"));
+				}
+				CloseHandle(hOut);
+				CloseHandle(src);
+			} while (FindNextFile(SearchHandle, &FindData));
+			FindClose(SearchHandle);
+			system("pause");
+			return 1;
 			break; //from case R
-			*/
-		case 'W':
-			filePos.QuadPart = id * sizeof(student);
-			ov.Offset = filePos.LowPart;
-			ov.OffsetHigh = filePos.HighPart;
-			LockFileEx(hIn, 0, 0, sizeof(student), 0, &ov);
-			/*if (ReadFile(hIn, &stud, sizeof(student), &nRead, &ov) && stud.id == id) {
-				UnlockFileEx(hIn, 0, sizeof(student), 0, &ov);
-				_tprintf("%d already existing, you will overwrite the content of the line.\n", stud.id);
-			}
-			else { 
-				do {
-					UnlockFileEx(hIn, 0, sizeof(student), 0, &ov);
-					filePos.QuadPart = --id * sizeof(student);
-					ov.Offset = filePos.LowPart;
-					ov.OffsetHigh = filePos.HighPart;
-					LockFileEx(hIn, 0, 0, sizeof(student), 0, &ov);
-				} while (!(ReadFile(hIn, &stud, sizeof(student), &nRead, &ov) && nRead > 0));
-				UnlockFileEx(hIn, 0, sizeof(student), 0, &ov);
-				id++;*/
-				//setting offsets to 0xFFFFFFFF to append to file
-				ov.Offset = 0xFFFFFFFF;
-				ov.OffsetHigh = 0xFFFFFFFF;
-			//}
-			_tprintf(_T("Insert: IP dude datetime length\n"));
-			_tscanf(_T("%s %s %s %s"), &stud.ip, &stud.dude, &stud.datetime, &stud.length);
-
-			LockFileEx(hIn, LOCKFILE_EXCLUSIVE_LOCK, 0, sizeof(student), 0, &ov);
-			if (WriteFile(hIn, &stud, sizeof(student), &nWrite, &ov) && nWrite == sizeof(student))
-				_tprintf(_T("Line with id: %s stored correctly.\n"), stud.ip);
-
-			UnlockFileEx(hIn, 0, sizeof(student), 0, &ov);
-			fflush(stdin);
-			break;
 		case 'E':
 			_tprintf(_T("The program will exit...\n"));
 			fflush(stdin);
-			CloseHandle(hIn);
 			system("pause");
 			return 0;
 		default:
