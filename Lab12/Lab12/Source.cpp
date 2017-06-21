@@ -14,10 +14,10 @@
 #define ifmain _tmainCCC
 
 typedef struct _access {
-	TCHAR ip[15];
-	TCHAR dude[LEN];
-	TCHAR datetime[19];
-	TCHAR length[8];
+	TCHAR ip[15+1];
+	TCHAR dude[LEN + 1];
+	TCHAR datetime[19 + 1];
+	TCHAR length[8 + 1];
 } tAccess;
 
 typedef struct _file {

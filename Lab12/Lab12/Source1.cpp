@@ -22,10 +22,10 @@
 #define ifmain _tmain
 
 typedef struct _access {
-	TCHAR ip[15];
-	TCHAR dude[LEN];
-	TCHAR datetime[19];
-	TCHAR length[8];
+	TCHAR ip[16];
+	TCHAR dude[LEN+1];
+	TCHAR datetime[19+1];
+	TCHAR length[8+1];
 } student;
 
 // righe da modificare: 67, 99, struct
@@ -63,15 +63,15 @@ INT ifmain(INT argc, LPTSTR argv[])
 			continue;
 		src = CreateFile(FindData.cFileName, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 		_stprintf(outName, _T("%s.bin"), FindData.cFileName);
-		_tprintf(_T("%s"), outName);
+		_tprintf(_T("\nCreated file: %s\n\n"), outName);
 		hOut = CreateFile(outName, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		while (ReadFile(src, clpBuffer, BUF_SIZE -1, &nRead, &ov) && nRead > 0) {
 			mbstowcs(lpBuffer, clpBuffer, BUF_SIZE +1);
 			_stscanf(lpBuffer, _T("%s\t%s\t%s\t%s\r\n%s"), stud.ip, stud.dude, stud.datetime, stud.length, oversize);
-			filePos.QuadPart += _tcslen(stud.ip) + _tcslen(stud.dude) + _tcslen(stud.datetime) + _tcslen(stud.length);
+			filePos.QuadPart += _tcslen(lpBuffer) - _tcslen(oversize);
 			ov.Offset = filePos.LowPart;
 			ov.OffsetHigh = filePos.HighPart;
-			_tprintf(_T("Stud data:\n%s %s %s %s\n"), stud.ip, stud.dude, stud.datetime, stud.length);
+			_tprintf(_T("Stud data:\n%s\t%s\t%s\t\t%s\n"), stud.ip, stud.dude, stud.datetime, stud.length);
 			ov1.Offset = 0xFFFFFFFF;
 			ov1.OffsetHigh = 0xFFFFFFFF;
 			if (WriteFile(hOut, &stud, sizeof(student), &nWrite, &ov1) && nWrite == sizeof(student))
