@@ -59,10 +59,13 @@ INT ifmain(INT argc, LPTSTR argv[])
 		switch (lpBuffer[0])
 		{
 		case 'R':
-			SearchHandle = FindFirstFile(argv[1], &FindData);
+			SetCurrentDirectory(argv[1]);
+			SearchHandle = FindFirstFile(_T("*"), &FindData);
 			do {
-				src = CreateFile(FindData.cFileName, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 				_tprintf(_T("%s"), FindData.cFileName);
+				if (_tcscmp(_T("."), FindData.cFileName) == 0 || _tcscmp(_T(".."), FindData.cFileName) == 0)
+					continue;
+				src = CreateFile(FindData.cFileName, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 				_stprintf(outName, _T("%s.bin"), FindData.cFileName);
 				_tprintf(_T("%s"), outName);
 				hOut = CreateFile(outName, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
