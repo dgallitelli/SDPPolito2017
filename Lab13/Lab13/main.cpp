@@ -58,6 +58,7 @@ tBuffer *queuesA, *queuesB;
 tFile *lfOutput;
 tFile *lfInput;
 INT threadsQty;
+BOOL stackA = FALSE, stackB = FALSE;
 
 
 INT ifmain(INT argc, LPTSTR argv[]) {
@@ -106,7 +107,9 @@ INT ifmain(INT argc, LPTSTR argv[]) {
 	}
 
 	WaitForMultipleObjects(threadsQty, threadsA, TRUE, INFINITE);
+	stackA = TRUE;
 	WaitForMultipleObjects(threadsQty, threadsB, TRUE, INFINITE);
+	stackB = TRUE;
 	WaitForMultipleObjects(threadsQty, threadsC, TRUE, INFINITE);
 
 	return 0;
@@ -121,18 +124,21 @@ DWORD WINAPI tJobA(LPVOID lpParam) {
 	TCHAR *output;
 	INT i = 0;
 	tRow row;
+	BOOL terminated;
 
 	while (1) {
 		srand(time(NULL) + GetCurrentThreadId());
 		Sleep(((INT)frand() * TIMEMUL) * 1000);
 
-		for (i = 0; i < threadsQty; i++)
-			if (!lfInput[i].terminated)
+		do {
+			for (i = 0; i < threadsQty; i++)
+				if (!lfInput[i].terminated)
+					break;
+			if (threadsQty == i) {
+				terminated = TRUE;
 				break;
-		if (threadsQty == i)
-			break;
+			}
 
-		while (1) {
 			file = lfInput[(INT)(frand() * threadsQty)];
 			if (file.terminated == TRUE)
 				continue;
@@ -143,9 +149,7 @@ DWORD WINAPI tJobA(LPVOID lpParam) {
 				file.terminated = TRUE;
 				ReleaseSemaphore(file.sem, 1, NULL);
 			}
-			else
-				break;
-		}
+		} while (nRead == 0);
 		string = (TCHAR*)malloc(sizeof(TCHAR) * (length));
 		ReadFile(file.file, string, sizeof(TCHAR)*length, &nRead, NULL);
 		ReleaseSemaphore(file.sem, 1, NULL);
@@ -170,18 +174,20 @@ DWORD WINAPI tJobA(LPVOID lpParam) {
 DWORD WINAPI tJobB(LPVOID lpParam) {
 	TCHAR *c;
 	TCHAR *output;
-	INT i = 0;
+	INT i;
 	tRow row;
 
 	while (1) {
+		if (stackA) {
+			for (i = 0; i < threadsQty; i++) {
+				if (queuesA[i].cIndex != queuesA[i].pIndex)
+					break;
+			}
+			if (i == threadsQty)
+				break;
+		}
 		srand(time(NULL) + GetCurrentThreadId());
 		Sleep(((INT)frand() * TIMEMUL) * 1000);
-
-		for (i = 0; i < threadsQty; i++)
-			if (!lfInput[i].terminated)
-				break;
-		if (threadsQty == i)
-			break;
 
 		row = dequeue(queuesA[(INT)(frand() * threadsQty)]);
 
@@ -212,6 +218,14 @@ DWORD WINAPI tJobC(LPVOID lpParam) {
 	OVERLAPPED ov = { 0, 0, 0, 0, NULL }; //Internal, InternalHigh, Offset, OffsetHigh, hEvent
 
 	while (1) {
+		if (stackB) {
+			for (i = 0; i < threadsQty; i++) {
+				if (queuesB[i].cIndex != queuesB[i].pIndex)
+					break;
+			}
+			if (i == threadsQty)
+				break;
+		}
 		srand(time(NULL) + GetCurrentThreadId());
 		Sleep(((INT)frand() * TIMEMUL) * 1000);
 		
