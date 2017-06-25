@@ -124,32 +124,32 @@ DWORD WINAPI tJobA(LPVOID lpParam) {
 	TCHAR *output;
 	INT i = 0;
 	tRow row;
-	BOOL terminated;
+	BOOL terminated = FALSE;
 
 	while (1) {
 		srand(time(NULL) + GetCurrentThreadId());
 		Sleep(((INT)frand() * TIMEMUL) * 1000);
 
 		do {
-			for (i = 0; i < threadsQty; i++)
-				if (!lfInput[i].terminated)
-					break;
+			for (i = 0; i < threadsQty && !lfInput[i].terminated; i++);
 			if (threadsQty == i) {
 				terminated = TRUE;
 				break;
 			}
 
 			file = lfInput[(INT)(frand() * threadsQty)];
-			if (file.terminated == TRUE)
-				continue;
 
 			WaitForSingleObject(file.sem, INFINITE);
+			if (file.terminated)
+				continue;
 			ReadFile(file.file, &length, sizeof(INT), &nRead, NULL);
 			if (nRead == 0) {
 				file.terminated = TRUE;
 				ReleaseSemaphore(file.sem, 1, NULL);
 			}
 		} while (nRead == 0);
+		if (terminated)
+			break;
 		string = (TCHAR*)malloc(sizeof(TCHAR) * (length));
 		ReadFile(file.file, string, sizeof(TCHAR)*length, &nRead, NULL);
 		ReleaseSemaphore(file.sem, 1, NULL);
@@ -179,10 +179,7 @@ DWORD WINAPI tJobB(LPVOID lpParam) {
 
 	while (1) {
 		if (stackA) {
-			for (i = 0; i < threadsQty; i++) {
-				if (queuesA[i].cIndex != queuesA[i].pIndex)
-					break;
-			}
+			for (i = 0; i < threadsQty && queuesA[i].cIndex != queuesA[i].pIndex; i++);
 			if (i == threadsQty)
 				break;
 		}
@@ -221,10 +218,7 @@ DWORD WINAPI tJobC(LPVOID lpParam) {
 
 	while (1) {
 		if (stackB) {
-			for (i = 0; i < threadsQty; i++) {
-				if (queuesB[i].cIndex != queuesB[i].pIndex)
-					break;
-			}
+			for (i = 0; i < threadsQty && queuesB[i].cIndex != queuesB[i].pIndex; i++);
 			if (i == threadsQty)
 				break;
 		}
@@ -264,6 +258,7 @@ static tRow *dequeue(tBuffer queue) {
 	DWORD fullSem;
 	fullSem = WaitForSingleObject(queue.fullSem, 100);
 	if (fullSem == WAIT_TIMEOUT) {
+		ReleaseSemaphore(queue.fullSem, 1, NULL);
 		return NULL;
 	}
 	WaitForSingleObject(queue.consumerSem, INFINITE);
