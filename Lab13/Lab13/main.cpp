@@ -47,7 +47,7 @@ DWORD WINAPI tJobC(LPVOID);
 static INT partition(TCHAR *a, INT l, INT r);
 static VOID quickSort(TCHAR *a, INT l, INT r);
 static FLOAT frand();
-static tRow dequeue(tBuffer);
+static tRow *dequeue(tBuffer);
 static void enqueue(tBuffer, tRow );
 
 /*
@@ -175,7 +175,7 @@ DWORD WINAPI tJobB(LPVOID lpParam) {
 	TCHAR *c;
 	TCHAR *output;
 	INT i;
-	tRow row;
+	tRow *row;
 
 	while (1) {
 		if (stackA) {
@@ -190,10 +190,12 @@ DWORD WINAPI tJobB(LPVOID lpParam) {
 		Sleep(((INT)frand() * TIMEMUL) * 1000);
 
 		row = dequeue(queuesA[(INT)(frand() * threadsQty)]);
+		if (row == NULL)
+			continue;
 
 		//CONSUME
-		output = (TCHAR*)malloc(sizeof(TCHAR) * (row.length + 1));
-		for (c = row.string; c - row.string < row.length; c++) {
+		output = (TCHAR*)malloc(sizeof(TCHAR) * (row->length + 1));
+		for (c = row->string; c - row->string < row->length; c++) {
 			if (*c > 'a' && *c < 'z')
 				output[i++] = *c + 'a' - 'A';
 			else
@@ -201,7 +203,7 @@ DWORD WINAPI tJobB(LPVOID lpParam) {
 		}
 		output[i] = '\0';
 
-		enqueue(queuesB[(INT)(frand() * threadsQty)], row);
+		enqueue(queuesB[(INT)(frand() * threadsQty)], *row);
 	}
 
 	ExitThread(0);
@@ -213,7 +215,7 @@ DWORD WINAPI tJobC(LPVOID lpParam) {
 	TCHAR *c;
 	TCHAR *output;
 	INT i = 0;
-	tRow row;
+	tRow *row;
 	tFile file;
 	OVERLAPPED ov = { 0, 0, 0, 0, NULL }; //Internal, InternalHigh, Offset, OffsetHigh, hEvent
 
@@ -230,14 +232,17 @@ DWORD WINAPI tJobC(LPVOID lpParam) {
 		Sleep(((INT)frand() * TIMEMUL) * 1000);
 		
 		row = dequeue(queuesB[(INT)(frand() * threadsQty)]);
+		if (row == NULL) {
+			continue;
+		}
 
 		//CONSUME
-		output = (TCHAR*)malloc(sizeof(TCHAR) * (row.length + 1));
-		for (c = row.string; c - row.string < row.length; c++) {
+		output = (TCHAR*)malloc(sizeof(TCHAR) * (row->length + 1));
+		for (c = row->string; c - row->string < row->length; c++) {
 			output[i++] = *c;
 		}
 		output[i] = '\0';
-		quickSort(output, 0, row.length+1);
+		quickSort(output, 0, row->length);
 
 		file = lfOutput[(INT)(frand() * threadsQty)];
 
@@ -247,19 +252,23 @@ DWORD WINAPI tJobC(LPVOID lpParam) {
 		WriteFile(file.file, &length, sizeof(INT), &nWrited, &ov);
 		ov.Offset = 0xFFFFFFFF;
 		ov.OffsetHigh = 0xFFFFFFFF;
-		WriteFile(file.file, output, sizeof(TCHAR)*row.length, &nWrited, &ov);
+		WriteFile(file.file, output, sizeof(TCHAR)*row->length, &nWrited, &ov);
 		ReleaseSemaphore(file.sem, 1, NULL);
 	}
 
 	ExitThread(0);
 }
 
-static tRow dequeue(tBuffer queue) {
-	tRow row;
-	WaitForSingleObject(queue.fullSem, INFINITE);
+static tRow *dequeue(tBuffer queue) {
+	tRow *row;
+	DWORD fullSem;
+	fullSem = WaitForSingleObject(queue.fullSem, 100);
+	if (fullSem == WAIT_TIMEOUT) {
+		return NULL;
+	}
 	WaitForSingleObject(queue.consumerSem, INFINITE);
 	//DEQUEUE
-	row = queue.queue[queue.cIndex++];
+	row = &queue.queue[queue.cIndex++];
 	queue.cIndex = queue.cIndex % QUEUE_LEN;
 
 	ReleaseSemaphore(queue.consumerSem, 1, NULL);
