@@ -47,6 +47,8 @@ DWORD WINAPI tJobC(LPVOID);
 static INT partition(TCHAR *a, INT l, INT r);
 static VOID quickSort(TCHAR *a, INT l, INT r);
 static FLOAT frand();
+static tRow dequeue(tBuffer);
+static void enqueue(tBuffer, tRow );
 
 /*
  * for syncing stdout
@@ -98,12 +100,9 @@ INT ifmain(INT argc, LPTSTR argv[]) {
 	}
 
 	for (i = 0; i < threadsQty; i++) {
-		threadsA[i] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)tJobA,
-			NULL, 0, threadsIdA + i);
-		threadsB[i] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)tJobB,
-			NULL, 0, threadsIdB + i);
-		threadsC[i] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)tJobC,
-			NULL, 0, threadsIdC + i);
+		threadsA[i] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)tJobA, NULL, 0, threadsIdA + i);
+		threadsB[i] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)tJobB, NULL, 0, threadsIdB + i);
+		threadsC[i] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)tJobC, NULL, 0, threadsIdC + i);
 	}
 
 	WaitForMultipleObjects(threadsQty, threadsA, TRUE, INFINITE);
@@ -121,7 +120,6 @@ DWORD WINAPI tJobA(LPVOID lpParam) {
 	TCHAR *c;
 	TCHAR *output;
 	INT i = 0;
-	tBuffer queue;
 	tRow row;
 
 	while (1) {
@@ -163,26 +161,16 @@ DWORD WINAPI tJobA(LPVOID lpParam) {
 
 		Sleep(((INT)frand() * TIMEMUL) * 1000);
 
-		queue = queuesA[(INT)(frand() * threadsQty)];
-		WaitForSingleObject(queue.emptySem, INFINITE);
-		WaitForSingleObject(queue.producerSem, INFINITE);
-		//ENQUEUE
-		queue.queue[queue.pIndex++] = row;
-		queue.pIndex = queue.pIndex % QUEUE_LEN;
-		
-		ReleaseSemaphore(queue.producerSem, 1, NULL);
-		ReleaseSemaphore(queue.fullSem, 1, NULL);
+		enqueue(queuesA[(INT)(frand() * threadsQty)], row);
 	}
 
 	ExitThread(0);
 }
 
 DWORD WINAPI tJobB(LPVOID lpParam) {
-	TCHAR *string;
 	TCHAR *c;
 	TCHAR *output;
 	INT i = 0;
-	tBuffer queue;
 	tRow row;
 
 	while (1) {
@@ -195,19 +183,11 @@ DWORD WINAPI tJobB(LPVOID lpParam) {
 		if (threadsQty == i)
 			break;
 
-		queue = queuesA[(INT)(frand() * threadsQty)];
-		WaitForSingleObject(queue.fullSem, INFINITE);
-		WaitForSingleObject(queue.consumerSem, INFINITE);
-		//DEQUEUE
-		row = queue.queue[queue.cIndex++];
-		queue.cIndex = queue.cIndex % QUEUE_LEN;
+		row = dequeue(queuesA[(INT)(frand() * threadsQty)]);
 
-		ReleaseSemaphore(queue.consumerSem, 1, NULL);
-		ReleaseSemaphore(queue.emptySem, 1, NULL);
 		//CONSUME
-		string = row.string;
 		output = (TCHAR*)malloc(sizeof(TCHAR) * (row.length + 1));
-		for (c = string; c - string < row.length; c++) {
+		for (c = row.string; c - row.string < row.length; c++) {
 			if (*c > 'a' && *c < 'z')
 				output[i++] = *c + 'a' - 'A';
 			else
@@ -215,15 +195,7 @@ DWORD WINAPI tJobB(LPVOID lpParam) {
 		}
 		output[i] = '\0';
 
-		queue = queuesB[(INT)(frand() * threadsQty)];
-		WaitForSingleObject(queue.emptySem, INFINITE);
-		WaitForSingleObject(queue.producerSem, INFINITE);
-		//ENQUEUE
-		queue.queue[queue.pIndex++] = row;
-		queue.pIndex = queue.pIndex % QUEUE_LEN;
-
-		ReleaseSemaphore(queue.producerSem, 1, NULL);
-		ReleaseSemaphore(queue.fullSem, 1, NULL);
+		enqueue(queuesB[(INT)(frand() * threadsQty)], row);
 	}
 
 	ExitThread(0);
@@ -232,11 +204,9 @@ DWORD WINAPI tJobB(LPVOID lpParam) {
 DWORD WINAPI tJobC(LPVOID lpParam) {
 	INT length;
 	DWORD nWrited;
-	TCHAR *string;
 	TCHAR *c;
 	TCHAR *output;
 	INT i = 0;
-	tBuffer queue;
 	tRow row;
 	tFile file;
 	OVERLAPPED ov = { 0, 0, 0, 0, NULL }; //Internal, InternalHigh, Offset, OffsetHigh, hEvent
@@ -245,20 +215,11 @@ DWORD WINAPI tJobC(LPVOID lpParam) {
 		srand(time(NULL) + GetCurrentThreadId());
 		Sleep(((INT)frand() * TIMEMUL) * 1000);
 		
-		queue = queuesB[(INT)(frand() * threadsQty)];
-		WaitForSingleObject(queue.fullSem, INFINITE);
-		WaitForSingleObject(queue.consumerSem, INFINITE);
-		//DEQUEUE
-		row = queue.queue[queue.cIndex++];
-		queue.cIndex = queue.cIndex % QUEUE_LEN;
-
-		ReleaseSemaphore(queue.consumerSem, 1, NULL);
-		ReleaseSemaphore(queue.emptySem, 1, NULL);
+		row = dequeue(queuesB[(INT)(frand() * threadsQty)]);
 
 		//CONSUME
-		string = row.string;
 		output = (TCHAR*)malloc(sizeof(TCHAR) * (row.length + 1));
-		for (c = string; c - string < row.length; c++) {
+		for (c = row.string; c - row.string < row.length; c++) {
 			output[i++] = *c;
 		}
 		output[i] = '\0';
@@ -277,6 +238,30 @@ DWORD WINAPI tJobC(LPVOID lpParam) {
 	}
 
 	ExitThread(0);
+}
+
+static tRow dequeue(tBuffer queue) {
+	tRow row;
+	WaitForSingleObject(queue.fullSem, INFINITE);
+	WaitForSingleObject(queue.consumerSem, INFINITE);
+	//DEQUEUE
+	row = queue.queue[queue.cIndex++];
+	queue.cIndex = queue.cIndex % QUEUE_LEN;
+
+	ReleaseSemaphore(queue.consumerSem, 1, NULL);
+	ReleaseSemaphore(queue.emptySem, 1, NULL);
+	return row;
+}
+
+static void enqueue(tBuffer queue, tRow row) {
+	WaitForSingleObject(queue.emptySem, INFINITE);
+	WaitForSingleObject(queue.producerSem, INFINITE);
+	//ENQUEUE
+	queue.queue[queue.pIndex++] = row;
+	queue.pIndex = queue.pIndex % QUEUE_LEN;
+
+	ReleaseSemaphore(queue.producerSem, 1, NULL);
+	ReleaseSemaphore(queue.fullSem, 1, NULL);
 }
 
 static FLOAT frand() {
