@@ -19,7 +19,7 @@
 
 #define BUF_SIZE 54
 #define LEN 256
-#define ifmain _tmain
+#define ifmain _tmainCCC2
 
 // righe da modificare: 67, 99, struct
 
