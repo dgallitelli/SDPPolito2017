@@ -150,18 +150,21 @@ DWORD WINAPI tJobA(LPVOID lpParam) {
 		} while (nRead == 0);
 		if (terminated)
 			break;
+		i = 0;
 		string = (TCHAR*)malloc(sizeof(TCHAR) * (length));
 		ReadFile(file.file, string, sizeof(TCHAR)*length, &nRead, NULL);
 		ReleaseSemaphore(file.sem, 1, NULL);
 
-		output = (TCHAR*)malloc(sizeof(TCHAR) * (length + 1));
-		for (c = string; c - string < length; c++) {
+		output = (TCHAR*)malloc(sizeof(TCHAR) * (length));
+		for (c = string; c - string < length; c++)
 			if (*c > 'A' && *c < 'Z' || *c > 'a' && *c < 'z')
-				output[i++] = *c;
-		}
-		output[i] = '\0';
-		row.length = length;
-		row.string = output;
+				row.string[i++] = *c;
+		row.string = (TCHAR*)malloc(sizeof(TCHAR) * (i));
+		for (c = output; c - row.string < i; c++)
+			row.string[i] = *c;
+		row.length = i;
+		free(output);
+		free(string);
 
 		Sleep(((INT)frand() * TIMEMUL) * 1000);
 
@@ -173,9 +176,8 @@ DWORD WINAPI tJobA(LPVOID lpParam) {
 
 DWORD WINAPI tJobB(LPVOID lpParam) {
 	TCHAR *c;
-	TCHAR *output;
 	INT i;
-	tRow *row;
+	tRow *row, rOutput;
 
 	while (1) {
 		if (stackA) {
@@ -191,16 +193,16 @@ DWORD WINAPI tJobB(LPVOID lpParam) {
 			continue;
 
 		//CONSUME
-		output = (TCHAR*)malloc(sizeof(TCHAR) * (row->length + 1));
-		for (c = row->string; c - row->string < row->length; c++) {
+		i = 0;
+		rOutput.string = (TCHAR*)malloc(sizeof(TCHAR) * (row->length));
+		for (c = row->string; c - row->string < row->length; c++)
 			if (*c > 'a' && *c < 'z')
-				output[i++] = *c + 'a' - 'A';
+				rOutput.string[i++] = *c + 'a' - 'A';
 			else
-				output[i++] = *c;
-		}
-		output[i] = '\0';
+				rOutput.string[i++] = *c;
+		rOutput.length = i;
 
-		enqueue(queuesB[(INT)(frand() * threadsQty)], *row);
+		enqueue(queuesB[(INT)(frand() * threadsQty)], rOutput);
 	}
 
 	ExitThread(0);
@@ -231,11 +233,11 @@ DWORD WINAPI tJobC(LPVOID lpParam) {
 		}
 
 		//CONSUME
-		output = (TCHAR*)malloc(sizeof(TCHAR) * (row->length + 1));
+		i = 0;
+		output = (TCHAR*)malloc(sizeof(TCHAR) * (row->length));
 		for (c = row->string; c - row->string < row->length; c++) {
 			output[i++] = *c;
 		}
-		output[i] = '\0';
 		quickSort(output, 0, row->length);
 
 		file = lfOutput[(INT)(frand() * threadsQty)];
@@ -248,6 +250,7 @@ DWORD WINAPI tJobC(LPVOID lpParam) {
 		ov.OffsetHigh = 0xFFFFFFFF;
 		WriteFile(file.file, output, sizeof(TCHAR)*row->length, &nWrited, &ov);
 		ReleaseSemaphore(file.sem, 1, NULL);
+		free(output);
 	}
 
 	ExitThread(0);
