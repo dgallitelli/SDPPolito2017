@@ -15,7 +15,8 @@
 #define QUEUE_LEN 10
 
 #define print(f_, ...) WaitForSingleObject(sStdOut, INFINITE); _tprintf((f_), __VA_ARGS__); ReleaseSemaphore(sStdOut, 1, NULL);
-#define TIMEMUL 10
+#define TIMEMUL 3
+#define MAX_TIMEOUT 3
 #define ifmain _tmain
 #define INPUT FileI
 #define OUTPUT FileO
@@ -26,7 +27,7 @@ typedef struct _row {
 } tRow;
 
 typedef struct _buffer {
-	tRow queue[LEN];
+	tRow queue[QUEUE_LEN];
 	HANDLE fullSem;
 	HANDLE emptySem;
 	HANDLE producerSem;
@@ -44,11 +45,13 @@ typedef struct _file {
 DWORD WINAPI tJobA(LPVOID);
 DWORD WINAPI tJobB(LPVOID);
 DWORD WINAPI tJobC(LPVOID);
-static INT partition(TCHAR *a, INT l, INT r);
-static VOID quickSort(TCHAR *a, INT l, INT r);
+static INT partition(TCHAR*, INT , INT);
+static VOID quickSort(TCHAR*, INT, INT);
 static FLOAT frand();
-static tRow *dequeue(tBuffer);
-static void enqueue(tBuffer, tRow );
+static BOOLEAN dequeue(tBuffer*, tRow*);
+static void enqueue(tBuffer*, tRow);
+static void EBSleep();
+static BOOLEAN checkIfThereIsWorkToDo(tBuffer*);
 
 /*
  * for syncing stdout
@@ -62,13 +65,14 @@ BOOL stackA = FALSE, stackB = FALSE;
 
 
 INT ifmain(INT argc, LPTSTR argv[]) {
-	INT i;
+	INT i, j;
 	DWORD *threadsIdA, *threadsIdB, *threadsIdC;
 
 	HANDLE *threadsA, *threadsB, *threadsC;
 	TCHAR buf[LEN];
 	
-	threadsQty = _ttoi(argv[2]);
+	threadsQty = _ttoi(argv[1]);
+	print(_T("\nThreads are %d\n"), threadsQty);
 
 	threadsIdA = (DWORD*)malloc((threadsQty) * sizeof(DWORD));
 	threadsIdB = (DWORD*)malloc((threadsQty) * sizeof(DWORD));
@@ -84,11 +88,15 @@ INT ifmain(INT argc, LPTSTR argv[]) {
 	sStdOut = CreateSemaphore(NULL, 1, threadsQty, NULL);
 
 	for (i = 0; i < threadsQty; i++) {
-		_stprintf(buf, _T("INPUT%d"), i + 1);
+		_stprintf(buf, _T("FileI%d"), i + 1);
+		print(_T("\nFile input #%d is %s\n"), i, buf);
 		lfInput[i].file = CreateFile(buf, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 		lfInput[i].sem = CreateSemaphore(NULL, 1, 1, NULL);
-		_stprintf(buf, _T("OUTPUT%d"), i + 1);
+		lfInput[i].terminated = 0;
+		_stprintf(buf, _T("FileO%d"), i + 1);
+		print(_T("\nFile output #%d is %s\n"), i, buf);
 		lfOutput[i].file = CreateFile(buf, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+		lfOutput[i].terminated = 0;
 		lfOutput[i].sem = CreateSemaphore(NULL, 1, 1, NULL);
 		queuesA[i].emptySem = CreateSemaphore(NULL, threadsQty, threadsQty, NULL);
 		queuesB[i].emptySem = CreateSemaphore(NULL, threadsQty, threadsQty, NULL);
@@ -98,25 +106,53 @@ INT ifmain(INT argc, LPTSTR argv[]) {
 		queuesB[i].producerSem = CreateSemaphore(NULL, 1, threadsQty, NULL);
 		queuesA[i].consumerSem = CreateSemaphore(NULL, 1, threadsQty, NULL);
 		queuesB[i].consumerSem = CreateSemaphore(NULL, 1, threadsQty, NULL);
+		queuesA[i].pIndex = 0;
+		queuesB[i].pIndex = 0;
+		queuesA[i].cIndex = 0;
+		queuesB[i].cIndex = 0;
+		for (j = 0; j < QUEUE_LEN; j++) {
+			queuesA[i].queue[j].length = 0;
+			queuesA[i].queue[j].string = NULL;
+		}
+
 	}
 
 	for (i = 0; i < threadsQty; i++) {
 		threadsA[i] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)tJobA, NULL, 0, threadsIdA + i);
 		threadsB[i] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)tJobB, NULL, 0, threadsIdB + i);
 		threadsC[i] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)tJobC, NULL, 0, threadsIdC + i);
+		print(_T("\nThread A #%d is %d\n"), i, threadsIdA[i]);
+		print(_T("\nThread B #%d is %d\n"), i, threadsIdB[i]);
+		print(_T("\nThread C #%d is %d\n"), i, threadsIdC[i]);
 	}
 
 	WaitForMultipleObjects(threadsQty, threadsA, TRUE, INFINITE);
+	print(_T("\nAll A threads finished"));
 	stackA = TRUE;
+	for (i = 0; i < threadsQty; i++)
+		CloseHandle(lfInput[i].file);
 	WaitForMultipleObjects(threadsQty, threadsB, TRUE, INFINITE);
+	print(_T("\nAll B threads finished"));
 	stackB = TRUE;
 	WaitForMultipleObjects(threadsQty, threadsC, TRUE, INFINITE);
-
+	for (i = 0; i < threadsQty; i++)
+		CloseHandle(lfOutput[i].file);
+	free(threadsIdA);
+	free(threadsIdB);
+	free(threadsIdC);
+	free(lfInput);
+	free(queuesA);
+	free(queuesB);
+	free(lfOutput);
+	free(threadsA);
+	free(threadsB);
+	free(threadsC);
+	system("pause");
 	return 0;
 }
 
 DWORD WINAPI tJobA(LPVOID lpParam) {
-	tFile file;
+	tFile *file = NULL;
 	INT length;
 	DWORD nRead;
 	TCHAR *string;
@@ -125,164 +161,166 @@ DWORD WINAPI tJobA(LPVOID lpParam) {
 	INT i = 0;
 	tRow row;
 	BOOL terminated = FALSE;
+	srand(time(NULL) + GetCurrentThreadId());
+	INT fnum, qnum;
 
 	while (1) {
-		srand(time(NULL) + GetCurrentThreadId());
-		Sleep(((INT)frand() * TIMEMUL) * 1000);
+		EBSleep();
 
 		do {
-			for (i = 0; i < threadsQty && !lfInput[i].terminated; i++);
+			for (i = 0; i < threadsQty && lfInput[i].terminated; i++);
 			if (threadsQty == i) {
+				print(_T("\nThread %d: input files are over\n"), GetCurrentThreadId());
 				terminated = TRUE;
 				break;
 			}
+			fnum = (INT)(frand() * threadsQty);
+			file = &(lfInput[fnum]);
 
-			file = lfInput[(INT)(frand() * threadsQty)];
-
-			WaitForSingleObject(file.sem, INFINITE);
-			if (file.terminated)
-				continue;
-			ReadFile(file.file, &length, sizeof(INT), &nRead, NULL);
+			WaitForSingleObject(file->sem, INFINITE);
+			nRead = 0;
+			if (file->terminated == FALSE)
+				ReadFile(file->file, &length, sizeof(INT), &nRead, NULL);
 			if (nRead == 0) {
-				file.terminated = TRUE;
-				ReleaseSemaphore(file.sem, 1, NULL);
+				file->terminated = TRUE;
+				ReleaseSemaphore(file->sem, 1, NULL);
 			}
 		} while (nRead == 0);
 		if (terminated)
 			break;
 		i = 0;
 		string = (TCHAR*)malloc(sizeof(TCHAR) * (length));
-		ReadFile(file.file, string, sizeof(TCHAR)*length, &nRead, NULL);
-		ReleaseSemaphore(file.sem, 1, NULL);
+		ReadFile(file->file, string, sizeof(TCHAR)*length, &nRead, NULL);
+		print(_T("\nThreadA %d-File %d: Read: [%d] %.*s\n"), GetCurrentThreadId(), fnum, length, length, string);
+
+		ReleaseSemaphore(file->sem, 1, NULL);
 
 		output = (TCHAR*)malloc(sizeof(TCHAR) * (length));
 		for (c = string; c - string < length; c++)
-			if (*c > 'A' && *c < 'Z' || *c > 'a' && *c < 'z')
-				row.string[i++] = *c;
+			if (_istalpha(*c))
+				output[i++] = *c;
 		row.string = (TCHAR*)malloc(sizeof(TCHAR) * (i));
-		for (c = output; c - row.string < i; c++)
-			row.string[i] = *c;
+		for (c = output; c - output < i; c++)
+			row.string[c-output] = *c;
 		row.length = i;
 		free(output);
 		free(string);
 
-		Sleep(((INT)frand() * TIMEMUL) * 1000);
+		EBSleep();
+		qnum = (INT)(frand() * threadsQty);
 
-		enqueue(queuesA[(INT)(frand() * threadsQty)], row);
+		print(_T("\nThreadA %d-File %d: Output Queue%d: [%d] %.*s\n"), GetCurrentThreadId(), fnum, qnum, i, i, row.string);
+		enqueue(&(queuesA[qnum]), row);
 	}
 
+	print(_T("\nExiting A thread %d"), GetCurrentThreadId());
 	ExitThread(0);
 }
 
 DWORD WINAPI tJobB(LPVOID lpParam) {
 	TCHAR *c;
 	INT i;
-	tRow *row, rOutput;
+	tRow row, rOutput;
+	srand(time(NULL) + GetCurrentThreadId());
+	INT qnum;
 
 	while (1) {
-		if (stackA) {
-			for (i = 0; i < threadsQty && queuesA[i].cIndex != queuesA[i].pIndex; i++);
-			if (i == threadsQty)
-				break;
-		}
-		srand(time(NULL) + GetCurrentThreadId());
-		Sleep(((INT)frand() * TIMEMUL) * 1000);
-
-		row = dequeue(queuesA[(INT)(frand() * threadsQty)]);
-		if (row == NULL)
+		if (stackA && checkIfThereIsWorkToDo(queuesA) == FALSE)
+			break;
+		EBSleep();
+		qnum = (INT)(frand() * threadsQty);
+		if (dequeue(&(queuesA[qnum]), &row) == FALSE) {
+			print(_T("\nQueue %d is empty."), qnum);
 			continue;
+		}
+		print(_T("\nThreadB %d-Queue input %d: Read: [%d] %.*s\n"), GetCurrentThreadId(), qnum, row.length, row.length, row.string);
 
 		//CONSUME
 		i = 0;
-		rOutput.string = (TCHAR*)malloc(sizeof(TCHAR) * (row->length));
-		for (c = row->string; c - row->string < row->length; c++)
-			if (*c > 'a' && *c < 'z')
-				rOutput.string[i++] = *c + 'a' - 'A';
-			else
-				rOutput.string[i++] = *c;
+		rOutput.string = (TCHAR*)malloc(sizeof(TCHAR) * (row.length));
+		for (c = row.string; c - row.string < row.length; c++)
+			rOutput.string[i++] = _totupper(*c);
 		rOutput.length = i;
-
-		enqueue(queuesB[(INT)(frand() * threadsQty)], rOutput);
+		EBSleep();
+		qnum = (INT)(frand() * threadsQty);
+		print(_T("\nThreadB %d: Output queue %d: [%d] %.*s\n"), GetCurrentThreadId(), qnum, i, i, rOutput.string);
+		enqueue(&(queuesB[qnum]), rOutput);
 	}
 
+	print(_T("\nExiting B thread %d"), GetCurrentThreadId());
 	ExitThread(0);
 }
 
 DWORD WINAPI tJobC(LPVOID lpParam) {
-	INT length;
 	DWORD nWrited;
 	TCHAR *c;
 	TCHAR *output;
 	INT i = 0;
-	tRow *row;
-	tFile file;
+	tRow row;
+	tFile *file;
 	OVERLAPPED ov = { 0, 0, 0, 0, NULL }; //Internal, InternalHigh, Offset, OffsetHigh, hEvent
+	srand(time(NULL) + GetCurrentThreadId());
+	INT fnum, qnum;
 
 	while (1) {
-		if (stackB) {
-			for (i = 0; i < threadsQty && queuesB[i].cIndex != queuesB[i].pIndex; i++);
-			if (i == threadsQty)
-				break;
-		}
-		srand(time(NULL) + GetCurrentThreadId());
-		Sleep(((INT)frand() * TIMEMUL) * 1000);
-		
-		row = dequeue(queuesB[(INT)(frand() * threadsQty)]);
-		if (row == NULL) {
+		if (stackB && checkIfThereIsWorkToDo(queuesB) == FALSE)
+			break;
+		EBSleep();
+		qnum = (INT)(frand() * threadsQty);
+		if (dequeue(&(queuesB[qnum]), &row) == FALSE) {
+			print(_T("Queue %d is empty."), qnum);
 			continue;
 		}
-
 		//CONSUME
 		i = 0;
-		output = (TCHAR*)malloc(sizeof(TCHAR) * (row->length));
-		for (c = row->string; c - row->string < row->length; c++) {
+		output = (TCHAR*)malloc(sizeof(TCHAR) * (row.length));
+		for (c = row.string; c - row.string < row.length; c++)
 			output[i++] = *c;
-		}
-		quickSort(output, 0, row->length);
+		quickSort(output, 0, row.length);
 
-		file = lfOutput[(INT)(frand() * threadsQty)];
-
-		WaitForSingleObject(file.sem, INFINITE);
+		EBSleep();
+		fnum = (INT)(frand() * threadsQty);
+		print(_T("\nThreadC %d: Output file %d: [%d] %.*s\n"), GetCurrentThreadId(), fnum, row.length, row.length, output);
+		file = &(lfOutput[fnum]);
+		
+		WaitForSingleObject(file->sem, INFINITE);
 		ov.Offset = 0xFFFFFFFF;
 		ov.OffsetHigh = 0xFFFFFFFF;
-		WriteFile(file.file, &length, sizeof(INT), &nWrited, &ov);
+		WriteFile(file->file, &(row.length), sizeof(INT), NULL, &ov);
 		ov.Offset = 0xFFFFFFFF;
 		ov.OffsetHigh = 0xFFFFFFFF;
-		WriteFile(file.file, output, sizeof(TCHAR)*row->length, &nWrited, &ov);
-		ReleaseSemaphore(file.sem, 1, NULL);
+		WriteFile(file->file, output, sizeof(TCHAR)*row.length, NULL, &ov);
+		ReleaseSemaphore(file->sem, 1, NULL);
 		free(output);
 	}
 
+	print(_T("\nExiting C thread %d"), GetCurrentThreadId());
 	ExitThread(0);
 }
 
-static tRow *dequeue(tBuffer queue) {
-	tRow *row;
-	DWORD fullSem;
-	fullSem = WaitForSingleObject(queue.fullSem, 100);
-	if (fullSem == WAIT_TIMEOUT) {
-		ReleaseSemaphore(queue.fullSem, 1, NULL);
-		return NULL;
-	}
-	WaitForSingleObject(queue.consumerSem, INFINITE);
+static BOOLEAN dequeue(tBuffer *queue, tRow *row) {
+	DWORD wres = WaitForSingleObject(queue->fullSem, 1000*MAX_TIMEOUT);
+	if (wres == WAIT_TIMEOUT)
+		return FALSE;
+	WaitForSingleObject(queue->consumerSem, INFINITE);
 	//DEQUEUE
-	row = &queue.queue[queue.cIndex++];
-	queue.cIndex = queue.cIndex % QUEUE_LEN;
+	*row = queue->queue[queue->cIndex++];
+	queue->cIndex = queue->cIndex % QUEUE_LEN;
 
-	ReleaseSemaphore(queue.consumerSem, 1, NULL);
-	ReleaseSemaphore(queue.emptySem, 1, NULL);
-	return row;
+	ReleaseSemaphore(queue->consumerSem, 1, NULL);
+	ReleaseSemaphore(queue->emptySem, 1, NULL);
+	return TRUE;
 }
 
-static void enqueue(tBuffer queue, tRow row) {
-	WaitForSingleObject(queue.emptySem, INFINITE);
-	WaitForSingleObject(queue.producerSem, INFINITE);
+static void enqueue(tBuffer *queue, tRow row) {
+	WaitForSingleObject(queue->emptySem, INFINITE);
+	WaitForSingleObject(queue->producerSem, INFINITE);
 	//ENQUEUE
-	queue.queue[queue.pIndex++] = row;
-	queue.pIndex = queue.pIndex % QUEUE_LEN;
+	queue->queue[queue->pIndex++] = row;
+	queue->pIndex = queue->pIndex % QUEUE_LEN;
 
-	ReleaseSemaphore(queue.producerSem, 1, NULL);
-	ReleaseSemaphore(queue.fullSem, 1, NULL);
+	ReleaseSemaphore(queue->producerSem, 1, NULL);
+	ReleaseSemaphore(queue->fullSem, 1, NULL);
 }
 
 static FLOAT frand() {
@@ -313,4 +351,24 @@ static INT partition(TCHAR *a, INT l, INT r) {
 	}
 	t = a[l]; a[l] = a[j]; a[j] = t;
 	return j;
+}
+
+static void EBSleep() {
+	INT wtime;
+	wtime = ((INT)(frand() * TIMEMUL)) * 1000;
+	print(_T("\nThread %d will wait %d s\n"), GetCurrentThreadId(), wtime/1000);
+	Sleep(wtime);
+}
+
+static BOOLEAN checkIfThereIsWorkToDo(tBuffer *queues) {
+	INT i;
+	for (i = 0; i < threadsQty; i++) {
+		/*if (WaitForSingleObject(queues[i].fullSem, 1) != WAIT_TIMEOUT) {
+			ReleaseSemaphore(queues[i].fullSem, 1, NULL);
+			return TRUE;
+		}*/
+		if (queues[i].cIndex != queues[i].pIndex)
+			return TRUE;
+	}
+	return FALSE;
 }
